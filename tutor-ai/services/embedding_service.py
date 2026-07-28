@@ -1,30 +1,22 @@
-"""ChromaDB and OpenAI embedding operations."""
+"""OpenAI embedding generation and pgvector storage/search."""
 
 from __future__ import annotations
 
 import logging
 from typing import Any, Optional
 
-import chromadb
-from chromadb.config import Settings
 from openai import OpenAI
 
-from config import (
-    CHROMA_COLLECTION_NAME,
-    CHROMA_DATA_DIR,
-    EMBEDDING_MODEL,
-    OPENAI_API_KEY,
-)
+from config import EMBEDDING_MODEL, OPENAI_API_KEY
+from models import Chunk, db
 
 logger = logging.getLogger(__name__)
 
 _client: Optional[OpenAI] = None
-_chroma_client = None
-_collection = None
 
 
 class EmbeddingServiceError(Exception):
-    """Raised when embedding or ChromaDB operations fail."""
+    """Raised when embedding generation or chunk storage/search fails."""
 
 
 def get_openai_client() -> OpenAI:
@@ -37,29 +29,6 @@ def get_openai_client() -> OpenAI:
     if _client is None:
         _client = OpenAI(api_key=OPENAI_API_KEY)
     return _client
-
-
-def get_collection():
-    """Return the persistent ChromaDB collection."""
-    global _chroma_client, _collection
-
-    if _collection is None:
-        CHROMA_DATA_DIR.mkdir(parents=True, exist_ok=True)
-        _chroma_client = chromadb.PersistentClient(
-            path=str(CHROMA_DATA_DIR),
-            settings=Settings(anonymized_telemetry=False),
-        )
-        _collection = _chroma_client.get_or_create_collection(
-            name=CHROMA_COLLECTION_NAME,
-            metadata={"hnsw:space": "cosine"},
-        )
-
-    return _collection
-
-
-def build_chunk_id(course_id: int, document_id: int, chunk_index: int) -> str:
-    """Create a unique chunk identifier."""
-    return f"course_{course_id}_document_{document_id}_chunk_{chunk_index}"
 
 
 def create_embeddings(texts: list[str]) -> list[list[float]]:
@@ -83,41 +52,43 @@ def create_query_embedding(text: str) -> list[float]:
 
 
 def add_document_chunks(chunks: list[dict]) -> None:
-    """Store document chunks and embeddings in ChromaDB."""
+    """Embed and store document chunks in Postgres."""
     if not chunks:
         return
 
-    collection = get_collection()
-    texts = [chunk["text"] for chunk in chunks]
-    metadatas = [chunk["metadata"] for chunk in chunks]
-    ids = [
-        build_chunk_id(
-            chunk["metadata"]["course_id"],
-            chunk["metadata"]["document_id"],
-            chunk["metadata"]["chunk_index"],
-        )
-        for chunk in chunks
-    ]
-
     try:
+        texts = [chunk["text"] for chunk in chunks]
         embeddings = create_embeddings(texts)
-        collection.add(
-            ids=ids,
-            documents=texts,
-            embeddings=embeddings,
-            metadatas=metadatas,
-        )
+
+        rows = [
+            Chunk(
+                course_id=chunk["metadata"]["course_id"],
+                document_id=chunk["metadata"]["document_id"],
+                document_name=chunk["metadata"]["document_name"],
+                page_number=chunk["metadata"]["page_number"],
+                chunk_index=chunk["metadata"]["chunk_index"],
+                text=chunk["text"],
+                embedding=embedding,
+            )
+            for chunk, embedding in zip(chunks, embeddings)
+        ]
+        db.session.add_all(rows)
+        db.session.commit()
+    except EmbeddingServiceError:
+        raise
     except Exception as exc:
-        logger.exception("Failed to add chunks to ChromaDB")
+        db.session.rollback()
+        logger.exception("Failed to store document chunks")
         raise EmbeddingServiceError(f"Failed to store document chunks: {exc}") from exc
 
 
 def delete_document_chunks(document_id: int) -> None:
     """Delete all chunks belonging to a document."""
-    collection = get_collection()
     try:
-        collection.delete(where={"document_id": document_id})
+        Chunk.query.filter_by(document_id=document_id).delete()
+        db.session.commit()
     except Exception as exc:
+        db.session.rollback()
         logger.exception("Failed to delete chunks for document %s", document_id)
         raise EmbeddingServiceError(
             f"Failed to delete document chunks: {exc}"
@@ -127,50 +98,38 @@ def delete_document_chunks(document_id: int) -> None:
 def search_course_chunks(
     course_id: int, query_embedding: list[float], top_k: int = 5
 ) -> list[dict[str, Any]]:
-    """Search ChromaDB for the most relevant chunks in a course."""
-    collection = get_collection()
-
+    """Search Postgres/pgvector for the most relevant chunks in a course."""
     try:
-        results = collection.query(
-            query_embeddings=[query_embedding],
-            n_results=top_k,
-            where={"course_id": course_id},
-            include=["documents", "metadatas", "distances"],
+        results = (
+            Chunk.query.filter_by(course_id=course_id)
+            .order_by(Chunk.embedding.cosine_distance(query_embedding))
+            .limit(top_k)
+            .all()
         )
     except Exception as exc:
-        logger.exception("ChromaDB search failed for course %s", course_id)
+        logger.exception("Chunk search failed for course %s", course_id)
         raise EmbeddingServiceError(f"Failed to search course chunks: {exc}") from exc
 
-    chunks = []
-    if not results or not results.get("ids") or not results["ids"][0]:
-        return chunks
-
-    for idx, chunk_id in enumerate(results["ids"][0]):
-        metadata = results["metadatas"][0][idx]
-        document_text = results["documents"][0][idx]
-        distance = results["distances"][0][idx] if results.get("distances") else None
-
-        chunks.append(
-            {
-                "id": chunk_id,
-                "text": document_text,
-                "document_name": metadata.get("document_name", "Unknown"),
-                "page_number": metadata.get("page_number", 0),
-                "document_id": metadata.get("document_id"),
-                "chunk_index": metadata.get("chunk_index"),
-                "distance": distance,
-            }
-        )
-
-    return chunks
+    return [
+        {
+            "id": chunk.id,
+            "text": chunk.text,
+            "document_name": chunk.document_name,
+            "page_number": chunk.page_number,
+            "document_id": chunk.document_id,
+            "chunk_index": chunk.chunk_index,
+        }
+        for chunk in results
+    ]
 
 
 def course_has_documents(course_id: int) -> bool:
-    """Return True if the course has indexed chunks in ChromaDB."""
-    collection = get_collection()
+    """Return True if the course has indexed chunks."""
     try:
-        results = collection.get(where={"course_id": course_id}, limit=1)
-        return bool(results and results.get("ids"))
+        return (
+            db.session.query(Chunk.id).filter_by(course_id=course_id).first()
+            is not None
+        )
     except Exception as exc:
         logger.exception("Failed to check indexed documents for course %s", course_id)
         raise EmbeddingServiceError(

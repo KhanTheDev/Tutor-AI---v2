@@ -20,21 +20,19 @@ Tutor AI Platform is a local Flask application for course-aware tutoring. Each c
 ## Technology Stack
 
 - Python 3
-- Flask
-- SQLite + SQLAlchemy
+- Flask (served via gunicorn / Vercel's Python runtime)
+- Postgres + pgvector, via SQLAlchemy (e.g. a free [Neon](https://neon.tech) database)
 - OpenAI API (embeddings)
 - Groq API (chat)
-- ChromaDB (persistent vector storage)
 - PyMuPDF (PDF text extraction)
 - HTML, CSS, Vanilla JavaScript
-- Bootstrap 5
 
 ## Architecture
 
 ```text
 Student uploads a document
         ↓
-Flask saves the document
+The file is read into memory (never written to disk)
         ↓
 PyMuPDF extracts the text
         ↓
@@ -42,13 +40,13 @@ Text is cleaned and divided into chunks
         ↓
 OpenAI creates embeddings
         ↓
-ChromaDB stores chunks and metadata
+Chunks + embeddings are stored in Postgres (pgvector)
         ↓
 Student submits a question
         ↓
 The question is embedded
         ↓
-ChromaDB retrieves relevant course chunks
+pgvector retrieves the closest course chunks (cosine distance)
         ↓
 Retrieved chunks are sent to the language model
         ↓
@@ -59,29 +57,38 @@ The application displays the answer and sources
 
 ## RAG Workflow
 
-1. **Ingestion** — PDF/TXT files are saved and parsed page by page.
+1. **Ingestion** — PDF/TXT/image files are parsed page by page, entirely in memory.
 2. **Chunking** — Text is split into ~1000-character chunks with ~200-character overlap.
 3. **Embedding** — Each chunk is converted to a vector using `text-embedding-3-small`.
-4. **Storage** — Chunks, metadata, and embeddings are stored in ChromaDB with course/document IDs.
-5. **Retrieval** — The student's question is embedded and matched against chunks filtered by `course_id`.
+4. **Storage** — Chunks, metadata, and embeddings are stored as rows in a Postgres `chunks` table (pgvector).
+5. **Retrieval** — The student's question is embedded and matched against chunks filtered by `course_id`, ordered by cosine distance.
 6. **Generation** — Top chunks are included in the prompt with source labels; the model answers using only those materials.
 7. **Citation** — Document name and page number metadata are shown under each answer.
+
+## Deployment (Vercel)
+
+The app deploys to Vercel as a serverless Python function (`api/index.py`, routed via `vercel.json`). Since Vercel's filesystem is read-only and ephemeral, there is no local file storage anywhere in the app — the database and vector store both live in Postgres (pgvector), and uploaded files are processed from memory and discarded.
+
+1. Create a free Postgres database (e.g. [Neon](https://neon.tech)) and copy its connection string.
+2. In the Vercel project settings, set environment variables: `OPENAI_API_KEY`, `GROQ_API_KEY`, `SECRET_KEY`, `DATABASE_URL`.
+3. Deploy. On first boot the app runs `CREATE EXTENSION IF NOT EXISTS vector` and creates its tables automatically.
+
+Note: Vercel's Hobby plan limits request body size and function duration, so very large uploads or slow embedding calls may need a higher plan.
 
 ## Folder Structure
 
 ```text
 tutor-ai/
+├── api/
+│   └── index.py       # Vercel entrypoint
 ├── app.py
 ├── config.py
 ├── models.py
+├── vercel.json
 ├── requirements.txt
 ├── .env.example
 ├── .gitignore
 ├── README.md
-├── database/
-│   └── tutor_ai.db
-├── uploads/
-├── chroma_data/
 ├── services/
 │   ├── __init__.py
 │   ├── document_processor.py
@@ -134,11 +141,16 @@ Copy the example file and add your keys:
 cp .env.example .env
 ```
 
-Edit `.env`:
+Edit `.env` with your OpenAI/Groq keys, a secret key, and a Postgres connection
+string with pgvector available (a free [Neon](https://neon.tech) database
+works for local dev too — there's no SQLite fallback, since the app is meant
+to run the same way locally and in production):
 
 ```env
 OPENAI_API_KEY=your_key_here
+GROQ_API_KEY=your_key_here
 SECRET_KEY=your_secret_key
+DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
 ```
 
 ### 4. Run the application
@@ -201,11 +213,11 @@ Use this script when presenting the project in an interview. It reflects only fe
 
 ### 2. Why courses are separated
 
-"Each course has its own SQLite records, uploaded files, ChromaDB metadata filter, and chat history. That prevents a Calculus document from appearing in a Data Structures answer."
+"Each course has its own Postgres records, chunk rows, and chat history, all filtered by `course_id`. That prevents a Calculus document from appearing in a Data Structures answer."
 
 ### 3. Upload and processing
 
-"When a student uploads a PDF or TXT file, Flask saves it with a UUID filename, creates a database record, extracts text, chunks it, embeds it, and stores everything in ChromaDB. The document status moves from processing to ready."
+"When a student uploads a PDF, TXT, or image file, Flask reads it into memory, creates a database record, extracts text, chunks it, embeds it, and stores the chunks and embeddings as rows in Postgres. Nothing is written to disk. The document status moves from processing to ready."
 
 ### 4. Chunking
 
@@ -215,13 +227,13 @@ Use this script when presenting the project in an interview. It reflects only fe
 
 "Embeddings turn text into numeric vectors that capture meaning. Similar questions and similar content end up close together in vector space, which makes semantic search possible."
 
-### 6. Why ChromaDB
+### 6. Why Postgres + pgvector
 
-"ChromaDB gives persistent local vector storage with metadata filtering. For an MVP demo, it's lightweight, easy to run locally, and supports course-level isolation through metadata."
+"Since the app runs on Vercel's serverless functions, there's no writable local disk to persist a vector database on — everything has to live in an external, always-on store. Postgres with the pgvector extension covers both the relational data and the vector search in one database, so there's only one connection string to manage."
 
 ### 7. Retrieval
 
-"When a student asks a question, the question is embedded and ChromaDB returns the top matching chunks for that course only. Duplicate or near-duplicate chunks are removed before prompting."
+"When a student asks a question, the question is embedded and pgvector returns the top matching chunks for that course only, ordered by cosine distance. Duplicate or near-duplicate chunks are removed before prompting."
 
 ### 8. Reducing hallucinations
 
@@ -244,11 +256,12 @@ Use this script when presenting the project in an interview. It reflects only fe
 | Error | Likely Cause | Fix |
 |------|--------------|-----|
 | `OPENAI_API_KEY is not configured` | Missing `.env` value | Add your API key to `.env` and restart |
-| Upload fails immediately | Unsupported file type | Use `.pdf` or `.txt` only |
-| File too large | Exceeds 25 MB limit | Upload a smaller file |
+| `DATABASE_URL is not configured` | Missing/empty `.env` value | Add a Postgres connection string to `.env` |
+| Upload fails immediately | Unsupported file type | Use `.pdf`, `.txt`, `.jpg`, or `.png` only |
+| File too large | Exceeds 4 MB limit (kept under Vercel's request body limit) | Upload a smaller file |
 | Document status `failed` | Empty PDF/text extraction issue | Try a different PDF or TXT with selectable text |
 | Chat says no processed documents | No ready documents | Upload materials and wait for `ready` status |
-| ChromaDB errors on first run | Missing folder permissions | Ensure `chroma_data/` exists and is writable |
+| `extension "vector" is not available` | Postgres provider doesn't have pgvector installed | Use a provider that supports it (Neon does) |
 | Module not found | Virtual env not activated | Activate venv and run `pip install -r requirements.txt` |
 
 ## License

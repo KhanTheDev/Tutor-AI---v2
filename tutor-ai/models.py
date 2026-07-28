@@ -2,6 +2,9 @@ import json
 from datetime import datetime, timezone
 
 from flask_sqlalchemy import SQLAlchemy
+from pgvector.sqlalchemy import Vector
+
+from config import EMBEDDING_DIMENSIONS
 
 db = SQLAlchemy()
 
@@ -40,7 +43,6 @@ class Document(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     course_id = db.Column(db.Integer, db.ForeignKey("courses.id"), nullable=False)
     original_filename = db.Column(db.String(255), nullable=False)
-    saved_filename = db.Column(db.String(255), nullable=False)
     file_type = db.Column(db.String(10), nullable=False)
     upload_date = db.Column(db.DateTime, default=utcnow, nullable=False)
     status = db.Column(db.String(20), default="uploaded", nullable=False)
@@ -72,3 +74,21 @@ class ChatMessage(db.Model):
 
     def set_sources(self, sources_list):
         self.sources = json.dumps(sources_list)
+
+
+class Chunk(db.Model):
+    __tablename__ = "chunks"
+
+    id = db.Column(db.Integer, primary_key=True)
+    course_id = db.Column(db.Integer, db.ForeignKey("courses.id"), nullable=False)
+    document_id = db.Column(db.Integer, db.ForeignKey("documents.id"), nullable=False)
+    document_name = db.Column(db.String(255), nullable=False)
+    page_number = db.Column(db.Integer, nullable=False)
+    chunk_index = db.Column(db.Integer, nullable=False)
+    text = db.Column(db.Text, nullable=False)
+    embedding = db.Column(Vector(EMBEDDING_DIMENSIONS), nullable=False)
+
+    __table_args__ = (
+        db.Index("ix_chunks_course_id", "course_id"),
+        db.Index("ix_chunks_document_id", "document_id"),
+    )

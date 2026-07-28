@@ -1,9 +1,6 @@
 """Tutor AI Platform - Flask application entry point."""
 
-import json
 import logging
-import uuid
-from pathlib import Path
 
 from flask import (
     Flask,
@@ -14,6 +11,7 @@ from flask import (
     request,
     url_for,
 )
+from sqlalchemy import text
 from werkzeug.exceptions import RequestEntityTooLarge
 import config
 from models import ChatMessage, Course, Document, db
@@ -35,18 +33,21 @@ logger = logging.getLogger(__name__)
 def create_app() -> Flask:
     app = Flask(__name__)
     app.config["SECRET_KEY"] = config.SECRET_KEY
+
+    if not config.SQLALCHEMY_DATABASE_URI:
+        raise RuntimeError(
+            "DATABASE_URL is not configured. Set it to a Postgres connection "
+            "string with the pgvector extension available (e.g. a free Neon database)."
+        )
     app.config["SQLALCHEMY_DATABASE_URI"] = config.SQLALCHEMY_DATABASE_URI
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["MAX_CONTENT_LENGTH"] = config.MAX_CONTENT_LENGTH
-    app.config["UPLOAD_FOLDER"] = str(config.UPLOAD_FOLDER)
-
-    config.DATABASE_DIR.mkdir(parents=True, exist_ok=True)
-    config.UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
-    config.CHROMA_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     db.init_app(app)
 
     with app.app_context():
+        db.session.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        db.session.commit()
         db.create_all()
 
     register_routes(app)
@@ -101,14 +102,11 @@ def register_routes(app: Flask) -> None:
             return redirect(url_for("course_detail", course_id=course_id))
 
         file_type = get_file_type(original_filename)
-        extension = file_type
-        saved_filename = f"{uuid.uuid4()}.{extension}"
-        saved_path = config.UPLOAD_FOLDER / saved_filename
+        file_bytes = file.read()
 
         document = Document(
             course_id=course.id,
             original_filename=original_filename,
-            saved_filename=saved_filename,
             file_type=file_type,
             status="processing",
         )
@@ -116,9 +114,8 @@ def register_routes(app: Flask) -> None:
         db.session.commit()
 
         try:
-            file.save(saved_path)
             chunks, total_pages = process_document_file(
-                file_path=saved_path,
+                file_bytes=file_bytes,
                 file_type=file_type,
                 course_id=course.id,
                 document_id=document.id,
@@ -139,15 +136,15 @@ def register_routes(app: Flask) -> None:
             )
         except EmbeddingServiceError as exc:
             logger.exception("Embedding failure during upload")
-            _mark_document_failed(document, saved_path)
+            _mark_document_failed(document)
             flash(str(exc), "danger")
         except ValueError as exc:
             logger.exception("Document processing failure")
-            _mark_document_failed(document, saved_path)
+            _mark_document_failed(document)
             flash(str(exc), "danger")
-        except Exception as exc:
+        except Exception:
             logger.exception("Unexpected upload failure")
-            _mark_document_failed(document, saved_path)
+            _mark_document_failed(document)
             flash("Failed to process the uploaded document.", "danger")
 
         return redirect(url_for("course_detail", course_id=course_id))
@@ -224,20 +221,16 @@ def register_routes(app: Flask) -> None:
     def delete_document(document_id: int):
         document = Document.query.get_or_404(document_id)
         course_id = document.course_id
-        saved_path = config.UPLOAD_FOLDER / document.saved_filename
 
         try:
             delete_document_chunks(document.id)
         except EmbeddingServiceError as exc:
-            logger.exception("Failed to delete ChromaDB chunks")
+            logger.exception("Failed to delete document chunks")
             flash(str(exc), "danger")
             return redirect(url_for("course_detail", course_id=course_id))
 
         db.session.delete(document)
         db.session.commit()
-
-        if saved_path.exists():
-            saved_path.unlink()
 
         flash(f'"{document.original_filename}" deleted successfully.', "success")
         return redirect(url_for("course_detail", course_id=course_id))
@@ -247,7 +240,6 @@ def register_routes(app: Flask) -> None:
         course = Course.query.get_or_404(course_id)
 
         for document in course.documents:
-            saved_path = config.UPLOAD_FOLDER / document.saved_filename
             try:
                 delete_document_chunks(document.id)
             except EmbeddingServiceError:
@@ -255,8 +247,6 @@ def register_routes(app: Flask) -> None:
                     "Failed to delete chunks for document %s during course deletion",
                     document.id,
                 )
-            if saved_path.exists():
-                saved_path.unlink()
 
         db.session.delete(course)
         db.session.commit()
@@ -265,11 +255,9 @@ def register_routes(app: Flask) -> None:
         return redirect(url_for("index"))
 
 
-def _mark_document_failed(document: Document, saved_path: Path) -> None:
+def _mark_document_failed(document: Document) -> None:
     document.status = "failed"
     db.session.commit()
-    if saved_path.exists():
-        saved_path.unlink()
 
 
 def register_error_handlers(app: Flask) -> None:

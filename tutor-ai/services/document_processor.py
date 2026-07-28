@@ -1,9 +1,14 @@
-"""Document extraction, cleaning, and chunking utilities."""
+"""Document extraction, cleaning, and chunking utilities.
+
+Files are processed entirely in memory — nothing is written to disk. This
+keeps the app compatible with read-only serverless filesystems (Vercel), and
+there's no need to persist the original file since only its extracted text
+is ever used.
+"""
 
 import base64
 import logging
 import re
-from pathlib import Path
 
 import fitz
 from openai import OpenAI
@@ -46,13 +51,12 @@ def clean_text(text: str) -> str:
     return text.strip()
 
 
-def extract_pdf_text(file_path: str | Path) -> list[dict]:
+def extract_pdf_text(file_bytes: bytes) -> list[dict]:
     """Extract text from each PDF page with metadata."""
     pages = []
-    path = Path(file_path)
 
     try:
-        with fitz.open(path) as doc:
+        with fitz.open(stream=file_bytes, filetype="pdf") as doc:
             for page_index in range(len(doc)):
                 page = doc[page_index]
                 text = clean_text(page.get_text("text"))
@@ -64,20 +68,18 @@ def extract_pdf_text(file_path: str | Path) -> list[dict]:
                         }
                     )
     except Exception as exc:
-        logger.exception("Failed to extract PDF text from %s", path)
+        logger.exception("Failed to extract PDF text")
         raise ValueError(f"Could not extract text from PDF: {exc}") from exc
 
     return pages
 
 
-def extract_txt_text(file_path: str | Path) -> list[dict]:
+def extract_txt_text(file_bytes: bytes) -> list[dict]:
     """Extract text from a TXT file as a single page."""
-    path = Path(file_path)
-
     try:
-        raw_text = path.read_text(encoding="utf-8", errors="ignore")
+        raw_text = file_bytes.decode("utf-8", errors="ignore")
     except Exception as exc:
-        logger.exception("Failed to read TXT file %s", path)
+        logger.exception("Failed to read TXT file")
         raise ValueError(f"Could not read text file: {exc}") from exc
 
     text = clean_text(raw_text)
@@ -87,18 +89,17 @@ def extract_txt_text(file_path: str | Path) -> list[dict]:
     return [{"text": text, "page_number": 1}]
 
 
-def extract_image_text(file_path: str | Path, file_type: str) -> list[dict]:
+def extract_image_text(file_bytes: bytes, file_type: str) -> list[dict]:
     """Transcribe text from an image using a vision-capable model."""
     if not OPENAI_API_KEY:
         raise ValueError(
             "OPENAI_API_KEY is not configured. Add it to your .env file."
         )
 
-    path = Path(file_path)
     media_type = "jpeg" if file_type == "jpg" else file_type
 
     try:
-        image_data = base64.b64encode(path.read_bytes()).decode("utf-8")
+        image_data = base64.b64encode(file_bytes).decode("utf-8")
         client = OpenAI(api_key=OPENAI_API_KEY)
         response = client.chat.completions.create(
             model=VISION_MODEL,
@@ -119,7 +120,7 @@ def extract_image_text(file_path: str | Path, file_type: str) -> list[dict]:
         )
         raw_text = response.choices[0].message.content or ""
     except Exception as exc:
-        logger.exception("Failed to transcribe image %s", path)
+        logger.exception("Failed to transcribe image")
         raise ValueError(f"Could not transcribe image: {exc}") from exc
 
     text = clean_text(raw_text)
@@ -183,7 +184,7 @@ def split_text_into_chunks(
 
 
 def process_document_file(
-    file_path: str | Path,
+    file_bytes: bytes,
     file_type: str,
     course_id: int,
     document_id: int,
@@ -198,11 +199,11 @@ def process_document_file(
     file_type = file_type.lower()
 
     if file_type == "pdf":
-        pages = extract_pdf_text(file_path)
+        pages = extract_pdf_text(file_bytes)
     elif file_type == "txt":
-        pages = extract_txt_text(file_path)
+        pages = extract_txt_text(file_bytes)
     elif file_type in IMAGE_EXTENSIONS:
-        pages = extract_image_text(file_path, file_type)
+        pages = extract_image_text(file_bytes, file_type)
     else:
         raise ValueError(f"Unsupported file type: {file_type}")
 

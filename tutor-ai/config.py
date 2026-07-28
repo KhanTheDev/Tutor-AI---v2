@@ -11,27 +11,26 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-me")
 
-# Points at a mounted persistent volume in production (e.g. Railway); falls
-# back to a local folder for dev, where the working directory is already persistent.
-DATA_DIR = Path(os.getenv("DATA_DIR", BASE_DIR))
+# Postgres (e.g. a free Neon database) with the pgvector extension enabled.
+# Required — there is no local-file fallback, since Vercel's filesystem is
+# read-only and doesn't persist between requests.
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+if DATABASE_URL.startswith("postgres://"):
+    # SQLAlchemy's psycopg dialect requires "postgresql://", not the legacy
+    # "postgres://" scheme that Neon/Heroku-style URLs use.
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+SQLALCHEMY_DATABASE_URI = DATABASE_URL
 
-DATABASE_DIR = DATA_DIR / "database"
-DATABASE_PATH = DATABASE_DIR / "tutor_ai.db"
-SQLALCHEMY_DATABASE_URI = f"sqlite:///{DATABASE_PATH}"
-
-UPLOAD_FOLDER = DATA_DIR / "uploads"
-CHROMA_DATA_DIR = DATA_DIR / "chroma_data"
-
-MAX_CONTENT_LENGTH = 25 * 1024 * 1024  # 25 MB
+MAX_CONTENT_LENGTH = 4 * 1024 * 1024  # 4 MB — stays under Vercel's request body limit
 ALLOWED_EXTENSIONS = {"pdf", "txt", "jpg", "jpeg", "png"}
 
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
 
 EMBEDDING_MODEL = "text-embedding-3-small"
+EMBEDDING_DIMENSIONS = 1536
 VISION_MODEL = "gpt-4o-mini"
 GROQ_MODEL = "llama-3.3-70b-versatile"
 
-CHROMA_COLLECTION_NAME = "tutor_ai_chunks"
 RETRIEVAL_TOP_K = 5
 CHAT_HISTORY_LIMIT = 50

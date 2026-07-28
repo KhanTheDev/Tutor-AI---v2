@@ -4,10 +4,5 @@ __pycache__/
 *.py[cod]
 *.pyo
 .env
-*.db
-uploads/*
-!uploads/.gitkeep
-chroma_data/*
-!chroma_data/.gitkeep
 .DS_Store
 *.log
