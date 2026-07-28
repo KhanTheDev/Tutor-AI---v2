@@ -1,7 +1,0 @@
-[build]
-  publish = "."
-
-[[redirects]]
-  from = "/courses/:id"
-  to = "/course.html?id=:id"
-  status = 200

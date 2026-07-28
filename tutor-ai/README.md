@@ -4,12 +4,12 @@ A demo-ready MVP that lets students create courses, upload PDF/TXT materials, an
 
 ## Project Overview
 
-Tutor AI Platform is a course-aware tutoring app split into two independently deployed pieces:
+Tutor AI Platform is a course-aware tutoring app deployed as a single Vercel project with two parts living side by side:
 
-- **`tutor-ai/`** (this folder) — a Flask JSON API. No HTML, no templates — every route returns JSON.
-- **`netlify-frontend/`** (sibling folder, one level up) — a static HTML/CSS/vanilla-JS site that calls this API over `fetch()`.
+- **`app.py` + `api/`** — a Flask JSON API. No server-rendered HTML — every route under `/api/*` returns JSON.
+- **`index.html`, `course.html`, `static/`** — a static HTML/CSS/vanilla-JS frontend, served directly by Vercel and calling the API via same-origin `fetch()` (see `static/js/config.js`).
 
-They're split because the frontend deploys to Netlify (static hosting) while the API deploys to Vercel (Netlify doesn't run Python functions). Each course keeps its own documents, embeddings, and chat history. When a student asks a question, the API retrieves the most relevant chunks from that course's uploaded materials and sends them to the language model with strict grounding instructions.
+`vercel.json` routes `/api/*` to the Python function and lets Vercel serve everything else as static files, so there's no CORS to manage — frontend and backend share one domain. Each course keeps its own documents, embeddings, and chat history. When a student asks a question, the API retrieves the most relevant chunks from that course's uploaded materials and sends them to the language model with strict grounding instructions.
 
 ## Main Features
 
@@ -24,16 +24,16 @@ They're split because the frontend deploys to Netlify (static hosting) while the
 
 ## Technology Stack
 
-**Backend (`tutor-ai/`, deploys to Vercel):**
+**Backend (`app.py`, `api/`, `services/`):**
 - Python 3, Flask (JSON API only — no server-rendered HTML)
 - Postgres + pgvector, via SQLAlchemy (e.g. a free [Neon](https://neon.tech) database)
-- Flask-CORS (the frontend is a different origin)
+- Flask-CORS (harmless same-origin default; useful if you ever split the frontend out again)
 - OpenAI API (embeddings), Groq API (chat)
 - PyMuPDF (PDF text extraction)
 
-**Frontend (`netlify-frontend/`, deploys to Netlify):**
+**Frontend (`index.html`, `course.html`, `static/`):**
 - Static HTML + CSS, vanilla JavaScript (no build step, no framework)
-- Talks to the backend exclusively via `fetch()` against `window.API_BASE`
+- Talks to the backend via `fetch()` against `window.API_BASE` (empty string = same origin)
 
 ## Architecture
 
@@ -73,52 +73,41 @@ The application displays the answer and sources
 6. **Generation** — Top chunks are included in the prompt with source labels; the model answers using only those materials.
 7. **Citation** — Document name and page number metadata are shown under each answer.
 
-## Deployment
+## Deployment (Vercel — frontend + backend together)
 
-This is two separate deployments, in two separate git "root directories" of the same repo.
-
-### Backend → Vercel
-
-The API deploys to Vercel as a serverless Python function (`api/index.py`, routed via `vercel.json`). Since Vercel's filesystem is read-only and ephemeral, there is no local file storage anywhere in the app — the database and vector store both live in Postgres (pgvector), and uploaded files are processed from memory and discarded.
+Everything deploys as one Vercel project. `vercel.json` routes `/api/*` to the Python function (`api/index.py`) and serves `index.html`, `course.html`, and `static/` directly as static files — same origin, no CORS needed.
 
 1. Create a free Postgres database (e.g. [Neon](https://neon.tech)) and copy its connection string.
 2. New Vercel project → set the project's root directory to `tutor-ai`.
-3. Set environment variables: `OPENAI_API_KEY`, `GROQ_API_KEY`, `SECRET_KEY`, `DATABASE_URL`, and `ALLOWED_ORIGINS` (your Netlify site's URL, once you have it — comma-separated if there's more than one).
+3. Set environment variables: `OPENAI_API_KEY`, `GROQ_API_KEY`, `SECRET_KEY`, `DATABASE_URL`.
 4. Deploy. On first boot the app runs `CREATE EXTENSION IF NOT EXISTS vector` and creates its tables automatically.
 
+`static/js/config.js` sets `window.API_BASE = ""` — leave it empty for this same-origin setup. Only change it if you ever split the frontend out to a different host again.
+
 Note: Vercel's Hobby plan limits request body size and function duration, so very large uploads or slow embedding calls may need a higher plan.
-
-### Frontend → Netlify
-
-1. New Netlify site → set the site's **base directory** to `netlify-frontend`.
-2. Edit `netlify-frontend/static/js/config.js` and set `window.API_BASE` to your deployed Vercel URL (e.g. `https://your-app.vercel.app`).
-3. Deploy. `netlify.toml` (inside `netlify-frontend/`) handles the `/courses/:id` → `course.html?id=:id` redirect so course links look clean.
-
-Once both are live, go back and set the backend's `ALLOWED_ORIGINS` to the real Netlify URL instead of `*`.
 
 ## Folder Structure
 
 ```text
-Updated Tutor AI/               (git root)
-├── tutor-ai/                   # backend — deploy root directory on Vercel
-│   ├── api/
-│   │   └── index.py            # Vercel entrypoint
-│   ├── app.py                  # JSON API routes
-│   ├── config.py
-│   ├── models.py
-│   ├── vercel.json
-│   ├── requirements.txt
-│   ├── .env.example
-│   └── services/
-│       ├── __init__.py
-│       ├── document_processor.py
-│       ├── embedding_service.py
-│       ├── retrieval_service.py
-│       └── tutor_service.py
-└── netlify-frontend/            # frontend — base directory on Netlify
+Updated Tutor AI/
+└── tutor-ai/                    # Vercel project root
+    ├── api/
+    │   └── index.py             # Vercel entrypoint (imports app.py's Flask app)
+    ├── app.py                   # JSON API routes
+    ├── config.py
+    ├── models.py
+    ├── vercel.json              # /api/* -> function, everything else -> static
+    ├── requirements.txt
+    ├── .env.example
+    ├── dev_server.py            # local-only: serves frontend + API together
     ├── index.html
     ├── course.html
-    ├── netlify.toml
+    ├── services/
+    │   ├── __init__.py
+    │   ├── document_processor.py
+    │   ├── embedding_service.py
+    │   ├── retrieval_service.py
+    │   └── tutor_service.py
     └── static/
         ├── css/templatemo-621-luminary-style.css
         ├── js/config.js         # set window.API_BASE here
@@ -174,23 +163,15 @@ SECRET_KEY=your_secret_key
 DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
 ```
 
-### 4. Run the backend API
+### 4. Run it locally
 
 ```bash
-python app.py
+python dev_server.py
 ```
 
-This serves the JSON API at `http://127.0.0.1:5000` — there's no HTML here, it's an API only.
+This serves the frontend (`/`, `/course.html`, `/static/*`) *and* the API (`/api/*`) together on `http://127.0.0.1:5000`, the same way Vercel serves them together in production. `dev_server.py` is dev-only — it's not what runs on Vercel (that's `api/index.py`), so nothing here needs to change before deploying.
 
-### 5. Run the frontend
-
-In `netlify-frontend/static/js/config.js`, point `window.API_BASE` at `http://127.0.0.1:5000` for local dev. Then, from `netlify-frontend/`:
-
-```bash
-python -m http.server 8080
-```
-
-Open `http://127.0.0.1:8080`. Remember to set `config.js` back to your deployed API URL before pushing to Netlify.
+If you ever want to run just the bare API (no frontend), `python app.py` does that on its own.
 
 ## Example Usage
 
@@ -290,7 +271,7 @@ Use this script when presenting the project in an interview. It reflects only fe
 | Chat says no processed documents | No ready documents | Upload materials and wait for `ready` status |
 | `extension "vector" is not available` | Postgres provider doesn't have pgvector installed | Use a provider that supports it (Neon does) |
 | Module not found | Virtual env not activated | Activate venv and run `pip install -r requirements.txt` |
-| Frontend shows "Couldn't load courses" | CORS blocked, or `API_BASE` wrong/unreachable | Check `config.js`'s `API_BASE` and the backend's `ALLOWED_ORIGINS` |
+| Frontend shows "Couldn't load courses" | `API_BASE` wrong, or API not running/deployed | Check `static/js/config.js` — should be `""` for same-origin |
 
 ## License
 
