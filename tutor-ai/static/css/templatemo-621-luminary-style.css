@@ -604,6 +604,16 @@ body.menu-open .top-nav { background: rgba(15,17,21,0.95); backdrop-filter: blur
 @media (max-width: 640px) {
   .new-course-form { flex-direction: column; align-items: stretch; }
 }
+
+.quick-subjects { display: flex; flex-wrap: wrap; gap: 10px; }
+.quick-subject-form { display: contents; }
+.subject-chip {
+  padding: 10px 20px; border-radius: 100px; background: transparent;
+  color: var(--ivory-muted); font-family: inherit; font-size: 0.78rem; font-weight: 500;
+  border: 1px solid var(--panel-border); cursor: pointer;
+  transition: transform 0.5s var(--silk-ease), border-color 0.5s var(--silk-ease), background 0.5s var(--silk-ease);
+}
+.subject-chip:hover { transform: scale(1.03); border-color: rgba(156,163,175,0.3); background: rgba(156,163,175,0.06); }
 .file-input::file-selector-button {
   background: var(--graphite); border: 1px solid var(--panel-border); border-radius: 100px;
   color: var(--ivory-muted); font-family: inherit; font-size: 0.72rem; font-weight: 500;

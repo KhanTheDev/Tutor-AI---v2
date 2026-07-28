@@ -192,6 +192,16 @@
         <input class="text-input" type="text" name="description" placeholder="Description (optional)" maxlength="500">
         <button type="submit" class="btn-primary">Create Course</button>
       </form>
+
+      <p class="panel-subtitle" style="margin: 20px 0 12px;">Or start from a default subject:</p>
+      <div class="quick-subjects">
+        {% for subject in ["Mathematics", "Biology", "Chemistry", "Physics", "History", "English", "Computer Science"] %}
+          <form action="{{ url_for('create_course') }}" method="post" class="quick-subject-form">
+            <input type="hidden" name="name" value="{{ subject }}">
+            <button type="submit" class="subject-chip">{{ subject }}</button>
+          </form>
+        {% endfor %}
+      </div>
     </div>
 
     {% if courses %}
