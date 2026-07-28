@@ -62,6 +62,22 @@ def register_routes(app: Flask) -> None:
         courses = Course.query.order_by(Course.created_at.desc()).all()
         return render_template("index.html", courses=courses)
 
+    @app.route("/courses", methods=["POST"])
+    def create_course():
+        name = (request.form.get("name") or "").strip()
+        description = (request.form.get("description") or "").strip()
+
+        if not name:
+            flash("Course name is required.", "danger")
+            return redirect(url_for("index"))
+
+        course = Course(name=name, description=description or None)
+        db.session.add(course)
+        db.session.commit()
+
+        flash(f'"{name}" created.', "success")
+        return redirect(url_for("course_detail", course_id=course.id))
+
     @app.route("/courses/<int:course_id>")
     def course_detail(course_id: int):
         course = Course.query.get_or_404(course_id)

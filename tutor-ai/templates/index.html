@@ -185,6 +185,15 @@
       {% endif %}
     {% endwith %}
 
+    <div class="panel new-course-panel reveal reveal-d2">
+      <h3 class="panel-title">New Course</h3>
+      <form action="{{ url_for('create_course') }}" method="post" class="new-course-form">
+        <input class="text-input" type="text" name="name" placeholder="Course name" maxlength="200" required>
+        <input class="text-input" type="text" name="description" placeholder="Description (optional)" maxlength="500">
+        <button type="submit" class="btn-primary">Create Course</button>
+      </form>
+    </div>
+
     {% if courses %}
       <div class="course-select-bar reveal reveal-d3">
         <select class="course-select" id="courseSelect">

@@ -589,6 +589,21 @@ body.menu-open .top-nav { background: rgba(15,17,21,0.95); backdrop-filter: blur
   background: rgba(255,255,255,0.02); border: 1px dashed var(--panel-border);
   color: var(--slate-light); font-family: inherit; font-size: 0.8rem; margin-bottom: 16px;
 }
+
+.text-input {
+  padding: 14px 18px; border-radius: 16px;
+  background: rgba(255,255,255,0.02); border: 1px solid var(--panel-border);
+  color: var(--ivory); font-family: inherit; font-size: 0.85rem;
+}
+.text-input:focus-visible { outline: 2px solid var(--silver); outline-offset: 2px; }
+.text-input::placeholder { color: var(--slate-warm); }
+
+.new-course-panel { max-width: 640px; margin: 0 auto 40px; text-align: left; }
+.new-course-form { display: flex; gap: 12px; flex-wrap: wrap; }
+.new-course-form .text-input { flex: 1; min-width: 180px; }
+@media (max-width: 640px) {
+  .new-course-form { flex-direction: column; align-items: stretch; }
+}
 .file-input::file-selector-button {
   background: var(--graphite); border: 1px solid var(--panel-border); border-radius: 100px;
   color: var(--ivory-muted); font-family: inherit; font-size: 0.72rem; font-weight: 500;
