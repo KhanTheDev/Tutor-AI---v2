@@ -6,7 +6,7 @@
 <title>Tutor AI &mdash; Ask Your Notes Anything</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/templatemo-621-luminary-style.css') }}">
+<link rel="stylesheet" href="static/css/templatemo-621-luminary-style.css">
 </head>
 <body>
 
@@ -88,15 +88,15 @@
       <a href="#features" class="btn-secondary">See How It Works</a>
     </div>
     <div class="hero-image">
-      <img src="{{ url_for('static', filename='img/hero-notes.jpg') }}" alt="Handwritten notes being written in a notebook">
+      <img src="static/img/hero-notes.jpg" alt="Handwritten notes being written in a notebook">
     </div>
     <div class="hero-metrics">
       <div class="metric">
-        <div class="metric-value"><span class="counter" data-target="{{ courses|length }}" data-decimals="0">0</span></div>
-        <div class="metric-label">Course{{ 's' if courses|length != 1 else '' }}</div>
+        <div class="metric-value"><span id="courseCountMetric">0</span></div>
+        <div class="metric-label" id="courseCountLabel">Courses</div>
       </div>
       <div class="metric">
-        <div class="metric-value"><span class="counter" data-target="{{ 78 + courses|sum(attribute='ready_document_count') }}" data-decimals="0">0</span></div>
+        <div class="metric-value"><span id="docCountMetric">0</span></div>
         <div class="metric-label">Documents Indexed</div>
       </div>
       <div class="metric">
@@ -175,67 +175,33 @@
     <h2 class="section-title reveal reveal-d1">Pick a course, <strong>get started</strong></h2>
     <p class="section-body reveal reveal-d2">Upload something, then start asking questions.</p>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div class="flash-list reveal reveal-d2">
-          {% for category, message in messages %}
-            <div class="flash-item {{ category }}">{{ message }}</div>
-          {% endfor %}
-        </div>
-      {% endif %}
-    {% endwith %}
+    <div class="flash-list reveal reveal-d2" id="flashList" style="display: none;"></div>
 
     <div class="panel new-course-panel reveal reveal-d2">
       <h3 class="panel-title">New Course</h3>
-      <form action="{{ url_for('create_course') }}" method="post" class="new-course-form">
+      <form id="new-course-form" class="new-course-form">
         <input class="text-input" type="text" name="name" placeholder="Course name" maxlength="200" required>
         <input class="text-input" type="text" name="description" placeholder="Description (optional)" maxlength="500">
         <button type="submit" class="btn-primary">Create Course</button>
       </form>
 
       <p class="panel-subtitle" style="margin: 20px 0 12px;">Or start from a default subject:</p>
-      <div class="quick-subjects">
-        {% for subject in ["Mathematics", "Biology", "Chemistry", "Physics", "History", "English", "Computer Science"] %}
-          <form action="{{ url_for('create_course') }}" method="post" class="quick-subject-form">
-            <input type="hidden" name="name" value="{{ subject }}">
-            <button type="submit" class="subject-chip">{{ subject }}</button>
-          </form>
-        {% endfor %}
+      <div class="quick-subjects" id="quickSubjects">
+        <!-- populated by dashboard.js -->
       </div>
     </div>
 
-    {% if courses %}
-      <div class="course-select-bar reveal reveal-d3">
-        <select class="course-select" id="courseSelect">
-          <option value="">Jump to a course&hellip;</option>
-          {% for course in courses %}
-            <option value="{{ url_for('course_detail', course_id=course.id) }}">{{ course.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
+    <div class="course-select-bar reveal reveal-d3" id="courseSelectBar" style="display: none;">
+      <select class="course-select" id="courseSelect">
+        <option value="">Jump to a course&hellip;</option>
+      </select>
+    </div>
 
-      <div class="courses-grid reveal reveal-d3">
-        {% for course in courses %}
-          <div class="course-card">
-            <h3 class="course-card-name">{{ course.name }}</h3>
-            <p class="course-card-desc">{{ course.description or "No description provided." }}</p>
-            <div class="course-card-meta">
-              <span>{{ course.document_count }} document{{ 's' if course.document_count != 1 else '' }}</span>
-            </div>
-            <div class="course-card-actions">
-              <a href="{{ url_for('course_detail', course_id=course.id) }}" class="btn-primary">Open Course</a>
-              <form action="{{ url_for('delete_course', course_id=course.id) }}" method="post" class="delete-course-form">
-                <button type="submit" class="btn-danger-link">Delete</button>
-              </form>
-            </div>
-          </div>
-        {% endfor %}
-      </div>
-    {% else %}
-      <div class="courses-empty reveal reveal-d3">
-        <p>No courses yet. Once one's added, it'll show up here.</p>
-      </div>
-    {% endif %}
+    <div class="courses-grid reveal reveal-d3" id="coursesGrid" style="display: none;"></div>
+
+    <div class="courses-empty reveal reveal-d3" id="coursesEmpty" style="display: none;">
+      <p>No courses yet. Once one's added, it'll show up here.</p>
+    </div>
   </section>
 
   <div class="silk-divider reveal"></div>
@@ -251,7 +217,7 @@
       </div>
       <div class="faq-item">
         <button class="faq-question">What can I upload?<span class="faq-icon"></span></button>
-        <div class="faq-answer"><div class="faq-answer-inner">PDFs, plain text files, and photos of notes (JPG/PNG) &mdash; up to 25MB each. Photos, including handwritten notes, get transcribed automatically.</div></div>
+        <div class="faq-answer"><div class="faq-answer-inner">PDFs, plain text files, and photos of notes (JPG/PNG) &mdash; up to 4MB each. Photos, including handwritten notes, get transcribed automatically.</div></div>
       </div>
       <div class="faq-item">
         <button class="faq-question">How do you make sure it doesn't just make stuff up?<span class="faq-icon"></span></button>
@@ -287,7 +253,9 @@
 
 </main>
 
-<script src="{{ url_for('static', filename='js/app.js') }}"></script>
-<script src="{{ url_for('static', filename='js/templatemo-621-luminary-script.js') }}"></script>
+<script src="static/js/config.js"></script>
+<script src="static/js/utils.js"></script>
+<script src="static/js/dashboard.js"></script>
+<script src="static/js/templatemo-621-luminary-script.js"></script>
 </body>
 </html>

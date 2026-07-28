@@ -1,16 +1,13 @@
-"""Tutor AI Platform - Flask application entry point."""
+"""Tutor AI Platform - Flask JSON API entry point.
+
+Serves no HTML. The frontend is a separate static site (deployed on
+Netlify) that calls these endpoints directly.
+"""
 
 import logging
 
-from flask import (
-    Flask,
-    flash,
-    jsonify,
-    redirect,
-    render_template,
-    request,
-    url_for,
-)
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 from sqlalchemy import text
 from werkzeug.exceptions import RequestEntityTooLarge
 import config
@@ -43,6 +40,8 @@ def create_app() -> Flask:
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["MAX_CONTENT_LENGTH"] = config.MAX_CONTENT_LENGTH
 
+    CORS(app, resources={r"/api/*": {"origins": config.ALLOWED_ORIGINS}})
+
     db.init_app(app)
 
     with app.app_context():
@@ -56,29 +55,61 @@ def create_app() -> Flask:
     return app
 
 
-def register_routes(app: Flask) -> None:
-    @app.route("/")
-    def index():
-        courses = Course.query.order_by(Course.created_at.desc()).all()
-        return render_template("index.html", courses=courses)
+def serialize_course(course: Course) -> dict:
+    return {
+        "id": course.id,
+        "name": course.name,
+        "description": course.description,
+        "document_count": course.document_count,
+        "ready_document_count": course.ready_document_count,
+        "created_at": course.created_at.isoformat(),
+    }
 
-    @app.route("/courses", methods=["POST"])
+
+def serialize_document(document: Document) -> dict:
+    return {
+        "id": document.id,
+        "original_filename": document.original_filename,
+        "file_type": document.file_type,
+        "status": document.status,
+        "total_pages": document.total_pages,
+        "total_chunks": document.total_chunks,
+        "upload_date": document.upload_date.isoformat(),
+    }
+
+
+def serialize_message(message: ChatMessage) -> dict:
+    return {
+        "id": message.id,
+        "role": message.role,
+        "content": message.content,
+        "sources": message.get_sources(),
+        "created_at": message.created_at.isoformat(),
+    }
+
+
+def register_routes(app: Flask) -> None:
+    @app.route("/api/courses", methods=["GET"])
+    def list_courses():
+        courses = Course.query.order_by(Course.created_at.desc()).all()
+        return jsonify({"success": True, "courses": [serialize_course(c) for c in courses]})
+
+    @app.route("/api/courses", methods=["POST"])
     def create_course():
-        name = (request.form.get("name") or "").strip()
-        description = (request.form.get("description") or "").strip()
+        payload = request.get_json(silent=True) or {}
+        name = (payload.get("name") or "").strip()
+        description = (payload.get("description") or "").strip()
 
         if not name:
-            flash("Course name is required.", "danger")
-            return redirect(url_for("index"))
+            return jsonify({"success": False, "error": "Course name is required."}), 400
 
         course = Course(name=name, description=description or None)
         db.session.add(course)
         db.session.commit()
 
-        flash(f'"{name}" created.', "success")
-        return redirect(url_for("course_detail", course_id=course.id))
+        return jsonify({"success": True, "course": serialize_course(course)}), 201
 
-    @app.route("/courses/<int:course_id>")
+    @app.route("/api/courses/<int:course_id>", methods=["GET"])
     def course_detail(course_id: int):
         course = Course.query.get_or_404(course_id)
         documents = (
@@ -92,30 +123,49 @@ def register_routes(app: Flask) -> None:
             .limit(config.CHAT_HISTORY_LIMIT)
             .all()
         )
-        return render_template(
-            "course.html",
-            course=course,
-            documents=documents,
-            messages=messages,
+        return jsonify(
+            {
+                "success": True,
+                "course": serialize_course(course),
+                "documents": [serialize_document(d) for d in documents],
+                "messages": [serialize_message(m) for m in messages],
+            }
         )
 
-    @app.route("/courses/<int:course_id>/upload", methods=["POST"])
+    @app.route("/api/courses/<int:course_id>", methods=["DELETE"])
+    def delete_course(course_id: int):
+        course = Course.query.get_or_404(course_id)
+
+        for document in course.documents:
+            try:
+                delete_document_chunks(document.id)
+            except EmbeddingServiceError:
+                logger.exception(
+                    "Failed to delete chunks for document %s during course deletion",
+                    document.id,
+                )
+
+        db.session.delete(course)
+        db.session.commit()
+
+        return jsonify({"success": True})
+
+    @app.route("/api/courses/<int:course_id>/upload", methods=["POST"])
     def upload_document(course_id: int):
         course = Course.query.get_or_404(course_id)
 
         if "document" not in request.files:
-            flash("No file was selected.", "danger")
-            return redirect(url_for("course_detail", course_id=course_id))
+            return jsonify({"success": False, "error": "No file was selected."}), 400
 
         file = request.files["document"]
         if not file or not file.filename:
-            flash("No file was selected.", "danger")
-            return redirect(url_for("course_detail", course_id=course_id))
+            return jsonify({"success": False, "error": "No file was selected."}), 400
 
         original_filename = file.filename
         if not allowed_file(original_filename):
-            flash("Only PDF, TXT, JPG, and PNG files are supported.", "danger")
-            return redirect(url_for("course_detail", course_id=course_id))
+            return jsonify(
+                {"success": False, "error": "Only PDF, TXT, JPG, and PNG files are supported."}
+            ), 400
 
         file_type = get_file_type(original_filename)
         file_bytes = file.read()
@@ -145,25 +195,36 @@ def register_routes(app: Flask) -> None:
             document.total_chunks = len(chunks)
             db.session.commit()
 
-            flash(
-                f'"{original_filename}" uploaded and processed successfully '
-                f"({len(chunks)} chunks).",
-                "success",
-            )
+            return jsonify({"success": True, "document": serialize_document(document)}), 201
         except EmbeddingServiceError as exc:
             logger.exception("Embedding failure during upload")
             _mark_document_failed(document)
-            flash(str(exc), "danger")
+            return jsonify({"success": False, "error": str(exc)}), 400
         except ValueError as exc:
             logger.exception("Document processing failure")
             _mark_document_failed(document)
-            flash(str(exc), "danger")
+            return jsonify({"success": False, "error": str(exc)}), 400
         except Exception:
             logger.exception("Unexpected upload failure")
             _mark_document_failed(document)
-            flash("Failed to process the uploaded document.", "danger")
+            return jsonify(
+                {"success": False, "error": "Failed to process the uploaded document."}
+            ), 500
 
-        return redirect(url_for("course_detail", course_id=course_id))
+    @app.route("/api/documents/<int:document_id>", methods=["DELETE"])
+    def delete_document(document_id: int):
+        document = Document.query.get_or_404(document_id)
+
+        try:
+            delete_document_chunks(document.id)
+        except EmbeddingServiceError as exc:
+            logger.exception("Failed to delete document chunks")
+            return jsonify({"success": False, "error": str(exc)}), 400
+
+        db.session.delete(document)
+        db.session.commit()
+
+        return jsonify({"success": True})
 
     @app.route("/api/courses/<int:course_id>/ask", methods=["POST"])
     def ask_question(course_id: int):
@@ -225,50 +286,12 @@ def register_routes(app: Flask) -> None:
             }
         )
 
-    @app.route("/courses/<int:course_id>/clear-chat", methods=["POST"])
+    @app.route("/api/courses/<int:course_id>/clear-chat", methods=["POST"])
     def clear_chat(course_id: int):
         course = Course.query.get_or_404(course_id)
         ChatMessage.query.filter_by(course_id=course.id).delete()
         db.session.commit()
-        flash("Chat history cleared.", "success")
-        return redirect(url_for("course_detail", course_id=course_id))
-
-    @app.route("/documents/<int:document_id>/delete", methods=["POST"])
-    def delete_document(document_id: int):
-        document = Document.query.get_or_404(document_id)
-        course_id = document.course_id
-
-        try:
-            delete_document_chunks(document.id)
-        except EmbeddingServiceError as exc:
-            logger.exception("Failed to delete document chunks")
-            flash(str(exc), "danger")
-            return redirect(url_for("course_detail", course_id=course_id))
-
-        db.session.delete(document)
-        db.session.commit()
-
-        flash(f'"{document.original_filename}" deleted successfully.', "success")
-        return redirect(url_for("course_detail", course_id=course_id))
-
-    @app.route("/courses/<int:course_id>/delete", methods=["POST"])
-    def delete_course(course_id: int):
-        course = Course.query.get_or_404(course_id)
-
-        for document in course.documents:
-            try:
-                delete_document_chunks(document.id)
-            except EmbeddingServiceError:
-                logger.exception(
-                    "Failed to delete chunks for document %s during course deletion",
-                    document.id,
-                )
-
-        db.session.delete(course)
-        db.session.commit()
-
-        flash(f'Course "{course.name}" deleted successfully.', "success")
-        return redirect(url_for("index"))
+        return jsonify({"success": True})
 
 
 def _mark_document_failed(document: Document) -> None:
@@ -279,22 +302,17 @@ def _mark_document_failed(document: Document) -> None:
 def register_error_handlers(app: Flask) -> None:
     @app.errorhandler(404)
     def not_found(error):
-        return render_template("error.html", title="Not Found", message="Page not found."), 404
+        return jsonify({"success": False, "error": "Not found."}), 404
 
     @app.errorhandler(413)
     @app.errorhandler(RequestEntityTooLarge)
     def file_too_large(error):
-        flash("File is too large. Maximum upload size is 25 MB.", "danger")
-        return redirect(request.referrer or url_for("index"))
+        return jsonify({"success": False, "error": "File is too large. Maximum upload size is 4 MB."}), 413
 
     @app.errorhandler(500)
     def server_error(error):
         logger.exception("Internal server error")
-        return render_template(
-            "error.html",
-            title="Server Error",
-            message="Something went wrong. Please try again.",
-        ), 500
+        return jsonify({"success": False, "error": "Something went wrong. Please try again."}), 500
 
 
 app = create_app()

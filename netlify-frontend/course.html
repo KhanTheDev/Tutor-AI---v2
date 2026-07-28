@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="pageTitle">Course | Tutor AI Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="static/css/templatemo-621-luminary-style.css">
+</head>
+<body>
+
+<svg class="grain" width="100%" height="100%">
+  <filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="5" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
+  <rect width="100%" height="100%" filter="url(#n)"/>
+</svg>
+<div class="atmosphere"></div>
+
+<!-- Nav -->
+<nav class="top-nav" id="topNav">
+  <a href="index.html" class="nav-brand">Tutor<span>AI</span></a>
+  <ul class="nav-links">
+    <li><a href="#course-hero">Overview</a></li>
+    <li><a href="#materials">Materials</a></li>
+    <li><a href="#chat">Chat</a></li>
+  </ul>
+  <a href="index.html" class="nav-cta">All Courses</a>
+  <button class="nav-toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false">
+    <span class="toggle-bar"></span><span class="toggle-bar"></span>
+  </button>
+</nav>
+
+<!-- Mobile Menu -->
+<div class="mobile-menu" id="mobileMenu">
+  <div class="mobile-menu-inner">
+    <div class="mobile-menu-links">
+      <a href="index.html" class="mobile-menu-link" data-index="01">Home</a>
+      <a href="#course-hero" class="mobile-menu-link" data-index="02">Overview</a>
+      <a href="#materials" class="mobile-menu-link" data-index="03">Materials</a>
+      <a href="#chat" class="mobile-menu-link" data-index="04">Chat</a>
+      <a href="index.html" class="mobile-menu-link" data-index="05">All Courses</a>
+    </div>
+    <div class="mobile-menu-footer">
+      <span>Tutor AI Platform</span>
+    </div>
+  </div>
+</div>
+
+<!-- Side Panels -->
+<nav class="side-panel left" aria-label="Scroll indicators">
+  <span class="side-label">Scroll</span>
+  <div class="side-track"><div class="side-track-fill" id="leftTrack"></div></div>
+  <div class="side-dot active"></div>
+  <div class="side-dot"></div>
+  <div class="side-dot"></div>
+  <div class="side-readout" id="scrollPct">00</div>
+</nav>
+
+<nav class="side-panel right" aria-label="Status indicators">
+  <span class="side-label">Ready</span>
+  <div class="side-track"><div class="side-track-fill" id="rightTrack"></div></div>
+  <div class="side-dot"></div>
+  <div class="side-dot"></div>
+  <div class="side-dot active"></div>
+  <div class="side-readout" id="readyReadout">0/0</div>
+</nav>
+
+<main class="main">
+
+  <!-- ——— COURSE HEADER ——— -->
+  <section class="course-hero" id="course-hero">
+    <a href="index.html" class="course-back">&larr; Back to Dashboard</a>
+
+    <div class="flash-list" id="flashList" style="display: none; margin-bottom: 24px;"></div>
+
+    <div class="course-hero-top">
+      <div>
+        <h1 class="course-hero-title" id="courseName">Loading&hellip;</h1>
+        <p class="course-hero-desc" id="courseDesc"></p>
+        <div class="course-hero-meta">
+          <span id="courseDocCount">0 uploaded documents</span>
+        </div>
+      </div>
+      <button type="button" class="btn-danger-link" id="deleteCourseBtn">Delete Course</button>
+    </div>
+  </section>
+
+  <!-- ——— MATERIALS ——— -->
+  <section class="section" id="materials" style="padding-top: 40px;">
+    <p class="section-tag reveal">Materials</p>
+    <h2 class="section-title reveal reveal-d1">Your <strong>files</strong></h2>
+
+    <div class="materials-grid reveal reveal-d2">
+      <div class="panel">
+        <h3 class="panel-title">Add a File</h3>
+        <p class="panel-subtitle">PDF, TXT, or a photo (JPG/PNG) of your notes, up to 4MB. It'll only be used for this course.</p>
+        <form id="upload-form">
+          <input class="file-input" type="file" name="document" accept=".pdf,.txt,.jpg,.jpeg,.png" required>
+          <button type="submit" class="btn-primary">Upload</button>
+        </form>
+      </div>
+
+      <div class="panel">
+        <h3 class="panel-title">Uploaded Files</h3>
+        <div class="document-list" id="documentList"></div>
+        <p class="panel-subtitle" id="noDocumentsMsg" style="margin-bottom: 0;">Nothing uploaded yet.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ——— CHAT ——— -->
+  <section class="section" id="chat" style="padding-top: 0;">
+    <p class="section-tag reveal">Chat</p>
+    <h2 class="section-title reveal reveal-d1">Ask <strong>away</strong></h2>
+
+    <div class="panel chat-panel reveal reveal-d2">
+      <div class="chat-panel-header">
+        <p class="panel-subtitle" style="margin-bottom: 0;">Answers come straight from what you uploaded, page number included.</p>
+        <button type="button" class="btn-ghost-link" id="clearChatBtn">Clear History</button>
+      </div>
+
+      <div id="chat-messages" class="chat-messages">
+        <p class="panel-subtitle" id="chat-empty-state" style="margin-bottom: 0;">Upload something above, then ask your first question.</p>
+      </div>
+
+      <div id="chat-error" class="chat-error d-none" role="alert"></div>
+
+      <form id="chat-form" class="chat-form">
+        <textarea id="question-input" class="chat-textarea" rows="2" placeholder="What do you want to know?" required></textarea>
+        <button type="submit" id="ask-button" class="btn-primary">Ask</button>
+      </form>
+    </div>
+  </section>
+
+  <div class="footer-bar" style="margin: 0 0 60px;">
+    <div class="footer-brand">Tutor AI Platform</div>
+    <div class="footer-links">
+      <a href="index.html">All Courses</a>
+    </div>
+  </div>
+
+</main>
+
+<script src="static/js/config.js"></script>
+<script src="static/js/utils.js"></script>
+<script src="static/js/course.js"></script>
+<script src="static/js/templatemo-621-luminary-script.js"></script>
+</body>
+</html>

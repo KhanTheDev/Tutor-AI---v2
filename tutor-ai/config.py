@@ -24,6 +24,11 @@ SQLALCHEMY_DATABASE_URI = DATABASE_URL
 MAX_CONTENT_LENGTH = 4 * 1024 * 1024  # 4 MB — stays under Vercel's request body limit
 ALLOWED_EXTENSIONS = {"pdf", "txt", "jpg", "jpeg", "png"}
 
+# Comma-separated list of frontend origins allowed to call this API (CORS).
+# Set to your Netlify site's URL once deployed; "*" is a permissive dev default.
+_origins_raw = os.getenv("ALLOWED_ORIGINS", "*").strip()
+ALLOWED_ORIGINS = [o.strip() for o in _origins_raw.split(",")] if _origins_raw != "*" else "*"
+
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
 
