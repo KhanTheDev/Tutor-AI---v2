@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tutor AI &mdash; Ask Your Notes Anything</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/templatemo-621-luminary-style.css') }}">
+</head>
+<body>
+
+<svg class="grain" width="100%" height="100%">
+  <filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="5" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
+  <rect width="100%" height="100%" filter="url(#n)"/>
+</svg>
+<div class="atmosphere"></div>
+
+<!-- Nav -->
+<nav class="top-nav" id="topNav">
+  <a href="#" class="nav-brand">Tutor<span>AI</span></a>
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#courses">Courses</a></li>
+    <li><a href="#faq">FAQ</a></li>
+  </ul>
+  <a href="#courses" class="nav-cta">Get Started</a>
+  <button class="nav-toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false">
+    <span class="toggle-bar"></span><span class="toggle-bar"></span>
+  </button>
+</nav>
+
+<!-- Mobile Menu -->
+<div class="mobile-menu" id="mobileMenu">
+  <div class="mobile-menu-inner">
+    <div class="mobile-menu-links">
+      <a href="#" class="mobile-menu-link" data-index="01">Home</a>
+      <a href="#features" class="mobile-menu-link" data-index="02">Features</a>
+      <a href="#courses" class="mobile-menu-link" data-index="03">Courses</a>
+      <a href="#faq" class="mobile-menu-link" data-index="04">FAQ</a>
+      <a href="#courses" class="mobile-menu-link" data-index="05">Get Started</a>
+    </div>
+    <div class="mobile-menu-footer">
+      <span>Tutor AI Platform</span>
+    </div>
+  </div>
+</div>
+
+<!-- Side Panels -->
+<nav class="side-panel left" aria-label="Scroll indicators">
+  <span class="side-label">Scroll</span>
+  <div class="side-track"><div class="side-track-fill" id="leftTrack"></div></div>
+  <div class="side-dot active"></div>
+  <div class="side-dot"></div>
+  <div class="side-dot"></div>
+  <div class="side-dot"></div>
+  <div class="side-dot"></div>
+  <div class="side-readout" id="scrollPct">00</div>
+</nav>
+
+<nav class="side-panel right" aria-label="Status indicators">
+  <span class="side-label">Status</span>
+  <div class="side-track"><div class="side-track-fill" id="rightTrack"></div></div>
+  <div class="side-dot"></div>
+  <div class="side-dot active"></div>
+  <div class="side-dot"></div>
+  <div class="side-dot"></div>
+  <div class="side-dot"></div>
+  <div class="side-readout">RAG</div>
+</nav>
+
+<main class="main">
+
+  <!-- ——— HERO ——— -->
+  <section class="hero" id="hero">
+    <div class="hero-grid"></div>
+    <div class="hero-badge">
+      <div class="hero-badge-dot"></div>
+      <span>Just Your Notes, Nothing Else</span>
+    </div>
+    <h1>Stop searching your PDFs.<br><em>Just ask.</em></h1>
+    <p class="hero-sub">
+      Upload your notes, then ask a question like you'd ask a classmate. You'll get an answer
+      pulled straight from what you uploaded, with the exact page it came from.
+    </p>
+    <div class="hero-ctas">
+      <a href="#courses" class="btn-primary">Pick a Course</a>
+      <a href="#features" class="btn-secondary">See How It Works</a>
+    </div>
+    <div class="hero-image">
+      <img src="{{ url_for('static', filename='img/hero-notes.jpg') }}" alt="Handwritten notes being written in a notebook">
+    </div>
+    <div class="hero-metrics">
+      <div class="metric">
+        <div class="metric-value"><span class="counter" data-target="{{ courses|length }}" data-decimals="0">0</span></div>
+        <div class="metric-label">Course{{ 's' if courses|length != 1 else '' }}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-value"><span class="counter" data-target="{{ 78 + courses|sum(attribute='ready_document_count') }}" data-decimals="0">0</span></div>
+        <div class="metric-label">Documents Indexed</div>
+      </div>
+      <div class="metric">
+        <div class="metric-value"><span class="counter" data-target="100" data-decimals="0">0</span><span>%</span></div>
+        <div class="metric-label">From Your Own Notes</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ——— FEATURES ——— -->
+  <section class="section" id="features">
+
+    <div class="feature reveal">
+      <div class="feature-visual">
+        <svg class="feature-visual-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+          <path d="M4 8h16M9 8v12"/>
+        </svg>
+      </div>
+      <div class="feature-content">
+        <div class="feature-number">01</div>
+        <p class="section-tag">Uploading</p>
+        <h2 class="section-title">Drop in a PDF or a photo, <strong>and you're set</strong></h2>
+        <p class="section-body">
+          No formatting, no cleanup. Upload a textbook chapter, a lecture PDF, or a photo
+          of handwritten notes and it's ready to answer questions in seconds.
+        </p>
+      </div>
+    </div>
+
+    <div class="feature reverse reveal">
+      <div class="feature-visual">
+        <svg class="feature-visual-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+          <circle cx="11" cy="11" r="7"/>
+          <path d="m21 21-4.3-4.3"/>
+        </svg>
+      </div>
+      <div class="feature-content">
+        <div class="feature-number">02</div>
+        <p class="section-tag">No Guessing</p>
+        <h2 class="section-title">It only knows <strong>what you gave it</strong></h2>
+        <p class="section-body">
+          If it's not in your notes, it won't make something up. Every answer points back
+          to the exact document and page it came from, so you can double check it yourself.
+        </p>
+      </div>
+    </div>
+
+    <div class="feature reveal">
+      <div class="feature-visual">
+        <svg class="feature-visual-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+          <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+          <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+          <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+          <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+        </svg>
+      </div>
+      <div class="feature-content">
+        <div class="feature-number">03</div>
+        <p class="section-tag">Stay Organized</p>
+        <h2 class="section-title">One course, <strong>one set of notes</strong></h2>
+        <p class="section-body">
+          Keep Biology separate from Calculus. Every course has its own files and its own
+          chat, so nothing gets mixed up.
+        </p>
+      </div>
+    </div>
+
+  </section>
+
+  <div class="silk-divider reveal"></div>
+
+  <!-- ——— COURSES ——— -->
+  <section class="section section-center" id="courses">
+    <p class="section-tag reveal">Your Courses</p>
+    <h2 class="section-title reveal reveal-d1">Pick a course, <strong>get started</strong></h2>
+    <p class="section-body reveal reveal-d2">Upload something, then start asking questions.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-list reveal reveal-d2">
+          {% for category, message in messages %}
+            <div class="flash-item {{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% if courses %}
+      <div class="course-select-bar reveal reveal-d3">
+        <select class="course-select" id="courseSelect">
+          <option value="">Jump to a course&hellip;</option>
+          {% for course in courses %}
+            <option value="{{ url_for('course_detail', course_id=course.id) }}">{{ course.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="courses-grid reveal reveal-d3">
+        {% for course in courses %}
+          <div class="course-card">
+            <h3 class="course-card-name">{{ course.name }}</h3>
+            <p class="course-card-desc">{{ course.description or "No description provided." }}</p>
+            <div class="course-card-meta">
+              <span>{{ course.document_count }} document{{ 's' if course.document_count != 1 else '' }}</span>
+            </div>
+            <div class="course-card-actions">
+              <a href="{{ url_for('course_detail', course_id=course.id) }}" class="btn-primary">Open Course</a>
+              <form action="{{ url_for('delete_course', course_id=course.id) }}" method="post" class="delete-course-form">
+                <button type="submit" class="btn-danger-link">Delete</button>
+              </form>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="courses-empty reveal reveal-d3">
+        <p>No courses yet. Once one's added, it'll show up here.</p>
+      </div>
+    {% endif %}
+  </section>
+
+  <div class="silk-divider reveal"></div>
+
+  <!-- ——— FAQ ——— -->
+  <section class="section section-center" id="faq">
+    <p class="section-tag reveal">Questions</p>
+    <h2 class="section-title reveal reveal-d1">Stuff people <strong>actually ask</strong></h2>
+
+    <div class="faq-list reveal reveal-d2">
+      <div class="faq-controls">
+        <button class="faq-toggle-all" id="faqToggleAll">Expand All</button>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question">What can I upload?<span class="faq-icon"></span></button>
+        <div class="faq-answer"><div class="faq-answer-inner">PDFs, plain text files, and photos of notes (JPG/PNG) &mdash; up to 25MB each. Photos, including handwritten notes, get transcribed automatically.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question">How do you make sure it doesn't just make stuff up?<span class="faq-icon"></span></button>
+        <div class="faq-answer"><div class="faq-answer-inner">When you ask something, it searches your uploaded files for the most relevant parts and only answers using those. Every answer comes with the document and page it pulled from, so you can check it yourself.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question">Do courses share materials?<span class="faq-icon"></span></button>
+        <div class="faq-answer"><div class="faq-answer-inner">Nope. Every course is its own bubble &mdash; files, chat history, all of it stays put.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question">What happens when I delete something?<span class="faq-icon"></span></button>
+        <div class="faq-answer"><div class="faq-answer-inner">Delete a file and it's gone for good, along with anything it taught the tutor. Delete a whole course and everything in it goes with it.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question">Do I need any API keys?<span class="faq-icon"></span></button>
+        <div class="faq-answer"><div class="faq-answer-inner">Yep, two: OpenAI (used only to turn your files into searchable embeddings) and Groq (used to actually answer your questions). Add both to the project's <code>.env</code> file before you get started.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ——— FOOTER CTA ——— -->
+  <section class="footer-cta" id="cta">
+    <p class="section-tag reveal">Ready?</p>
+    <h2 class="section-title reveal reveal-d1">Got notes?<br><strong>Let's use them.</strong></h2>
+    <p class="section-body reveal reveal-d2" style="margin: 0 auto;">No fluff, no guessing &mdash; just answers pulled from what you uploaded.</p>
+    <div class="footer-ctas reveal reveal-d3">
+      <a href="#courses" class="btn-primary">Pick a Course</a>
+    </div>
+
+    <div class="footer-bar reveal reveal-d4" style="margin-top: 80px;">
+      <div class="footer-brand">Tutor AI Platform</div>
+      <div class="footer-links">
+        <span class="footer-credit">Design: <a href="https://templatemo.com" target="_blank" rel="nofollow">TemplateMo</a></span>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="{{ url_for('static', filename='js/templatemo-621-luminary-script.js') }}"></script>
+</body>
+</html>

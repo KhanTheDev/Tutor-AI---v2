@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ course.name }} | Tutor AI Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/templatemo-621-luminary-style.css') }}">
+</head>
+<body>
+
+<svg class="grain" width="100%" height="100%">
+  <filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="5" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
+  <rect width="100%" height="100%" filter="url(#n)"/>
+</svg>
+<div class="atmosphere"></div>
+
+<!-- Nav -->
+<nav class="top-nav" id="topNav">
+  <a href="{{ url_for('index') }}" class="nav-brand">Tutor<span>AI</span></a>
+  <ul class="nav-links">
+    <li><a href="#course-hero">Overview</a></li>
+    <li><a href="#materials">Materials</a></li>
+    <li><a href="#chat">Chat</a></li>
+  </ul>
+  <a href="{{ url_for('index') }}" class="nav-cta">All Courses</a>
+  <button class="nav-toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false">
+    <span class="toggle-bar"></span><span class="toggle-bar"></span>
+  </button>
+</nav>
+
+<!-- Mobile Menu -->
+<div class="mobile-menu" id="mobileMenu">
+  <div class="mobile-menu-inner">
+    <div class="mobile-menu-links">
+      <a href="{{ url_for('index') }}" class="mobile-menu-link" data-index="01">Home</a>
+      <a href="#course-hero" class="mobile-menu-link" data-index="02">Overview</a>
+      <a href="#materials" class="mobile-menu-link" data-index="03">Materials</a>
+      <a href="#chat" class="mobile-menu-link" data-index="04">Chat</a>
+      <a href="{{ url_for('index') }}" class="mobile-menu-link" data-index="05">All Courses</a>
+    </div>
+    <div class="mobile-menu-footer">
+      <span>Tutor AI Platform</span>
+    </div>
+  </div>
+</div>
+
+<!-- Side Panels -->
+<nav class="side-panel left" aria-label="Scroll indicators">
+  <span class="side-label">Scroll</span>
+  <div class="side-track"><div class="side-track-fill" id="leftTrack"></div></div>
+  <div class="side-dot active"></div>
+  <div class="side-dot"></div>
+  <div class="side-dot"></div>
+  <div class="side-readout" id="scrollPct">00</div>
+</nav>
+
+<nav class="side-panel right" aria-label="Status indicators">
+  <span class="side-label">Ready</span>
+  <div class="side-track"><div class="side-track-fill" id="rightTrack"></div></div>
+  <div class="side-dot"></div>
+  <div class="side-dot"></div>
+  <div class="side-dot active"></div>
+  <div class="side-readout">{{ course.ready_document_count }}/{{ course.document_count }}</div>
+</nav>
+
+<main class="main">
+
+  <!-- ——— COURSE HEADER ——— -->
+  <section class="course-hero" id="course-hero">
+    <a href="{{ url_for('index') }}" class="course-back">&larr; Back to Dashboard</a>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-list" style="margin-bottom: 24px;">
+          {% for category, message in messages %}
+            <div class="flash-item {{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="course-hero-top">
+      <div>
+        <h1 class="course-hero-title">{{ course.name }}</h1>
+        <p class="course-hero-desc">{{ course.description or "No description yet." }}</p>
+        <div class="course-hero-meta">
+          <span>{{ course.document_count }} uploaded document{{ 's' if course.document_count != 1 else '' }}</span>
+        </div>
+      </div>
+      <form action="{{ url_for('delete_course', course_id=course.id) }}" method="post" class="delete-course-form">
+        <button type="submit" class="btn-danger-link">Delete Course</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ——— MATERIALS ——— -->
+  <section class="section" id="materials" style="padding-top: 40px;">
+    <p class="section-tag reveal">Materials</p>
+    <h2 class="section-title reveal reveal-d1">Your <strong>files</strong></h2>
+
+    <div class="materials-grid reveal reveal-d2">
+      <div class="panel">
+        <h3 class="panel-title">Add a File</h3>
+        <p class="panel-subtitle">PDF, TXT, or a photo (JPG/PNG) of your notes, up to 25MB. It'll only be used for this course.</p>
+        <form action="{{ url_for('upload_document', course_id=course.id) }}" method="post" enctype="multipart/form-data">
+          <input class="file-input" type="file" name="document" accept=".pdf,.txt,.jpg,.jpeg,.png" required>
+          <button type="submit" class="btn-primary">Upload</button>
+        </form>
+      </div>
+
+      <div class="panel">
+        <h3 class="panel-title">Uploaded Files</h3>
+        {% if documents %}
+          <div class="document-list">
+            {% for document in documents %}
+              <div class="document-item">
+                <div>
+                  <div class="document-name">{{ document.original_filename }}</div>
+                  <div>
+                    <span class="status-badge status-{{ document.status }}">{{ document.status }}</span>
+                    <span class="document-meta">{{ document.file_type|upper }}</span>
+                  </div>
+                  <div class="document-meta">Pages: {{ document.total_pages }} &bull; Chunks: {{ document.total_chunks }}</div>
+                </div>
+                <form action="{{ url_for('delete_document', document_id=document.id) }}" method="post" class="delete-document-form">
+                  <button type="submit" class="btn-danger-link">Delete</button>
+                </form>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="panel-subtitle" style="margin-bottom: 0;">Nothing uploaded yet.</p>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <!-- ——— CHAT ——— -->
+  <section class="section" id="chat" style="padding-top: 0;">
+    <p class="section-tag reveal">Chat</p>
+    <h2 class="section-title reveal reveal-d1">Ask <strong>away</strong></h2>
+
+    <div class="panel chat-panel reveal reveal-d2">
+      <div class="chat-panel-header">
+        <p class="panel-subtitle" style="margin-bottom: 0;">Answers come straight from what you uploaded, page number included.</p>
+        <form action="{{ url_for('clear_chat', course_id=course.id) }}" method="post" id="clear-chat-form">
+          <button type="submit" class="btn-ghost-link">Clear History</button>
+        </form>
+      </div>
+
+      <div id="chat-messages"
+           class="chat-messages"
+           data-course-id="{{ course.id }}"
+           data-ready-documents="{{ course.ready_document_count }}">
+        {% if messages %}
+          {% for message in messages %}
+            <div class="chat-message {{ 'user-message' if message.role == 'user' else 'assistant-message' }}">
+              <div class="message-bubble">
+                <div class="message-role">{{ 'You' if message.role == 'user' else 'Tutor AI' }}</div>
+                <div class="message-content">{{ message.content }}</div>
+                {% if message.role == 'assistant' and message.get_sources() %}
+                  <div class="message-sources">
+                    <strong>Sources:</strong>
+                    {% for source in message.get_sources() %}
+                      <span class="source-badge">{{ source.document_name }} &mdash; Page {{ source.page_number }}</span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        {% else %}
+          <p class="panel-subtitle" id="chat-empty-state" style="margin-bottom: 0;">Upload something above, then ask your first question.</p>
+        {% endif %}
+      </div>
+
+      <div id="chat-error" class="chat-error d-none" role="alert"></div>
+
+      <form id="chat-form" class="chat-form">
+        <textarea id="question-input" class="chat-textarea" rows="2" placeholder="What do you want to know?" required></textarea>
+        <button type="submit" id="ask-button" class="btn-primary">Ask</button>
+      </form>
+    </div>
+  </section>
+
+  <div class="footer-bar" style="margin: 0 0 60px;">
+    <div class="footer-brand">Tutor AI Platform</div>
+    <div class="footer-links">
+      <a href="{{ url_for('index') }}">All Courses</a>
+    </div>
+  </div>
+
+</main>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="{{ url_for('static', filename='js/templatemo-621-luminary-script.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    if (typeof initCourseChat === "function") {
+      initCourseChat();
+    }
+  });
+</script>
+</body>
+</html>

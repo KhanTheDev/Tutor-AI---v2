@@ -1,0 +1,12 @@
+Chapter 1: Python Variables
+
+A variable in Python is a name that refers to a value stored in memory.
+You do not need to declare a variable's type explicitly; Python figures it out automatically.
+For example, writing x = 5 creates an integer variable named x.
+Writing x = "hello" would make x a string instead.
+This behavior is called dynamic typing.
+
+Chapter 2: Python Loops
+
+The for loop in Python iterates over a sequence such as a list, tuple, or string.
+The while loop repeats a block of code as long as a condition remains true.
